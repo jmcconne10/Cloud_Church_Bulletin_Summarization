@@ -4,19 +4,16 @@ from email.mime.text import MIMEText
 import openai
 import json
 import time
+import datetime
 
 # === Configuration ===
-S3_BUCKET = "church-bulletin-bot"
-S3_KEY = "bulletin_20250629.pdf"
 SECRET_NAME = "church-bulletin-bot/credentials"
-
 
 # === Helpers ===
 def get_secret(secret_name):
     client = boto3.client("secretsmanager")
     response = client.get_secret_value(SecretId=secret_name)
     return json.loads(response["SecretString"])
-
 
 def extract_text_from_textract(bucket, key):
     textract = boto3.client("textract")
@@ -56,16 +53,14 @@ def extract_text_from_textract(bucket, key):
 
     return "\n".join(lines)
 
-
 def get_openai_response(prompt, api_key):
     openai.api_key = api_key
     response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo-16k",  # Updated model
+        model="gpt-3.5-turbo-16k",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.7
     )
     return response['choices'][0]['message']['content']
-
 
 def send_email_via_gmail(subject, body, sender_email, app_password, recipient_email):
     msg = MIMEText(body)
@@ -77,7 +72,6 @@ def send_email_via_gmail(subject, body, sender_email, app_password, recipient_em
         server.login(sender_email, app_password)
         server.send_message(msg)
 
-
 # === Lambda Entry Point ===
 def lambda_handler(event, context):
     # Load secrets
@@ -86,15 +80,22 @@ def lambda_handler(event, context):
     gmail_user = secret["gmail_address"]
     gmail_pass = secret["gmail_app_password"]
     recipient_address = secret["recipient_address"]
+    s3_bucket = secret["s3_bucket"]
+    url_prefix = secret["bulletin_url_prefix"]
 
-    # Extract text from bulletin PDF
-    bulletin_text = extract_text_from_textract(S3_BUCKET, S3_KEY)
+    # Generate today's bulletin filename
+    today = datetime.date.today()
+    date_str = today.strftime("%Y%m%d")
+    s3_key = f"bulletin_20250629.pdf"
 
-    # Summarize events using OpenAI
+    # Extract text from bulletin
+    bulletin_text = extract_text_from_textract(s3_bucket, s3_key)
+
+    # Ask OpenAI to summarize
     openai_prompt = f"Read this church bulletin and summarize only the upcoming events for this week:\n\n{bulletin_text}"
     summary = get_openai_response(openai_prompt, openai_key)
 
-    # Email the summary
+    # Email result
     send_email_via_gmail(
         subject="Church Bulletin Events Summary",
         body=summary,
