@@ -8,7 +8,6 @@ import time
 # === Configuration ===
 SECRET_NAME = "church-bulletin-bot/credentials"
 
-
 # === Helpers ===
 
 def get_secret(secret_name):
@@ -16,6 +15,11 @@ def get_secret(secret_name):
     response = client.get_secret_value(SecretId=secret_name)
     return json.loads(response["SecretString"])
 
+def load_prompt_from_s3(bucket):
+    s3 = boto3.client("s3")
+    key = "prompts/summarize_prompt.txt"
+    response = s3.get_object(Bucket=bucket, Key=key)
+    return response['Body'].read().decode('utf-8')
 
 def find_latest_bulletin_key(bucket, prefix="bulletins/"):
     s3 = boto3.client("s3")
@@ -24,28 +28,23 @@ def find_latest_bulletin_key(bucket, prefix="bulletins/"):
     if "Contents" not in response or not response["Contents"]:
         raise Exception("❌ No bulletin PDF found in the S3 bucket.")
 
-    # Filter for PDF files and sort by LastModified
-    pdf_objects = [
-        obj for obj in response["Contents"]
-        if obj["Key"].endswith(".pdf")
-    ]
+    # Filter for PDFs and sort by LastModified descending
+    pdf_objects = [obj for obj in response["Contents"] if obj["Key"].endswith(".pdf")]
     if not pdf_objects:
         raise Exception("❌ No PDF files found under the 'bulletins/' prefix.")
 
-    # Sort by LastModified descending and pick the newest
     latest_obj = sorted(pdf_objects, key=lambda x: x["LastModified"], reverse=True)[0]
     print(f"📄 Using most recent bulletin: {latest_obj['Key']} (LastModified: {latest_obj['LastModified']})")
     return latest_obj["Key"]
 
 def extract_text_from_textract(bucket, key):
     textract = boto3.client("textract")
-
     start_response = textract.start_document_text_detection(
         DocumentLocation={'S3Object': {'Bucket': bucket, 'Name': key}}
     )
     job_id = start_response['JobId']
 
-    # Poll until complete
+    # Poll until job is done
     while True:
         response = textract.get_document_text_detection(JobId=job_id)
         status = response["JobStatus"]
@@ -56,7 +55,7 @@ def extract_text_from_textract(bucket, key):
     if status == "FAILED":
         raise Exception("Textract job failed")
 
-    # Gather all text lines
+    # Collect lines of text
     lines = []
     next_token = None
     while True:
@@ -75,7 +74,6 @@ def extract_text_from_textract(bucket, key):
 
     return "\n".join(lines)
 
-
 def get_openai_response(prompt, api_key):
     openai.api_key = api_key
     response = openai.ChatCompletion.create(
@@ -84,7 +82,6 @@ def get_openai_response(prompt, api_key):
         temperature=0.7
     )
     return response['choices'][0]['message']['content']
-
 
 def send_email_via_gmail(subject, body, sender_email, app_password, recipient_email):
     msg = MIMEText(body)
@@ -95,7 +92,6 @@ def send_email_via_gmail(subject, body, sender_email, app_password, recipient_em
     with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
         server.login(sender_email, app_password)
         server.send_message(msg)
-
 
 # === Lambda Entry Point ===
 
@@ -108,17 +104,20 @@ def lambda_handler(event, context):
     recipient_address = secret["recipient_address"]
     s3_bucket = secret["s3_bucket"]
 
-    # Get latest bulletin file from S3
-    s3_key = find_latest_bulletin_key(s3_bucket)
+    # Load the OpenAI prompt from S3
+    base_prompt = load_prompt_from_s3(s3_bucket)
 
-    # Extract text from the bulletin PDF
+    # Get the latest bulletin PDF and extract its text
+    s3_key = find_latest_bulletin_key(s3_bucket)
     bulletin_text = extract_text_from_textract(s3_bucket, s3_key)
 
-    # Ask OpenAI to summarize the bulletin
-    openai_prompt = f"Read this church bulletin and summarize only the upcoming events for this week:\n\n{bulletin_text}"
+    # Combine prompt with bulletin text
+    openai_prompt = f"{base_prompt.strip()}\n\n{bulletin_text}"
+
+    # Ask OpenAI to summarize
     summary = get_openai_response(openai_prompt, openai_key)
 
-    # Send the summary via email
+    # Send email with summary
     send_email_via_gmail(
         subject="Church Bulletin Events Summary",
         body=summary,

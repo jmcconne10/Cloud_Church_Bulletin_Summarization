@@ -1,0 +1,6 @@
+Summarize this church bulletin with a focus on:
+- Upcoming events
+- Volunteer opportunities
+- Sermon topics
+
+Each item should be listed in the category from above, and provide the information in bullet form
