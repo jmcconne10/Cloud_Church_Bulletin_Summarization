@@ -4,16 +4,38 @@ from email.mime.text import MIMEText
 import openai
 import json
 import time
-import datetime
 
 # === Configuration ===
 SECRET_NAME = "church-bulletin-bot/credentials"
 
+
 # === Helpers ===
+
 def get_secret(secret_name):
     client = boto3.client("secretsmanager")
     response = client.get_secret_value(SecretId=secret_name)
     return json.loads(response["SecretString"])
+
+
+def find_latest_bulletin_key(bucket, prefix="bulletins/"):
+    s3 = boto3.client("s3")
+    response = s3.list_objects_v2(Bucket=bucket, Prefix=prefix)
+
+    if "Contents" not in response or not response["Contents"]:
+        raise Exception("❌ No bulletin PDF found in the S3 bucket.")
+
+    # Filter for PDF files and sort by LastModified
+    pdf_objects = [
+        obj for obj in response["Contents"]
+        if obj["Key"].endswith(".pdf")
+    ]
+    if not pdf_objects:
+        raise Exception("❌ No PDF files found under the 'bulletins/' prefix.")
+
+    # Sort by LastModified descending and pick the newest
+    latest_obj = sorted(pdf_objects, key=lambda x: x["LastModified"], reverse=True)[0]
+    print(f"📄 Using most recent bulletin: {latest_obj['Key']} (LastModified: {latest_obj['LastModified']})")
+    return latest_obj["Key"]
 
 def extract_text_from_textract(bucket, key):
     textract = boto3.client("textract")
@@ -53,6 +75,7 @@ def extract_text_from_textract(bucket, key):
 
     return "\n".join(lines)
 
+
 def get_openai_response(prompt, api_key):
     openai.api_key = api_key
     response = openai.ChatCompletion.create(
@@ -61,6 +84,7 @@ def get_openai_response(prompt, api_key):
         temperature=0.7
     )
     return response['choices'][0]['message']['content']
+
 
 def send_email_via_gmail(subject, body, sender_email, app_password, recipient_email):
     msg = MIMEText(body)
@@ -72,7 +96,9 @@ def send_email_via_gmail(subject, body, sender_email, app_password, recipient_em
         server.login(sender_email, app_password)
         server.send_message(msg)
 
+
 # === Lambda Entry Point ===
+
 def lambda_handler(event, context):
     # Load secrets
     secret = get_secret(SECRET_NAME)
@@ -81,21 +107,18 @@ def lambda_handler(event, context):
     gmail_pass = secret["gmail_app_password"]
     recipient_address = secret["recipient_address"]
     s3_bucket = secret["s3_bucket"]
-    url_prefix = secret["bulletin_url_prefix"]
 
-    # Generate today's bulletin filename
-    today = datetime.date.today()
-    date_str = today.strftime("%Y%m%d")
-    s3_key = f"bulletin_20250629.pdf"
+    # Get latest bulletin file from S3
+    s3_key = find_latest_bulletin_key(s3_bucket)
 
-    # Extract text from bulletin
+    # Extract text from the bulletin PDF
     bulletin_text = extract_text_from_textract(s3_bucket, s3_key)
 
-    # Ask OpenAI to summarize
+    # Ask OpenAI to summarize the bulletin
     openai_prompt = f"Read this church bulletin and summarize only the upcoming events for this week:\n\n{bulletin_text}"
     summary = get_openai_response(openai_prompt, openai_key)
 
-    # Email result
+    # Send the summary via email
     send_email_via_gmail(
         subject="Church Bulletin Events Summary",
         body=summary,
