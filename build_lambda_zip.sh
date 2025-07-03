@@ -1,26 +1,35 @@
 #!/bin/bash
 
-# Set variables
-PACKAGE_DIR="lambda_package"
-ZIP_FILE="lambda_function.zip"
-SOURCE_FILE="lambda_function.py"
+set -e
 
-# Step 1: Clean previous build
-echo "Cleaning old package..."
-rm -rf "$PACKAGE_DIR" "$ZIP_FILE"
+# === Config ===
+DIST_DIR="dist"
+LAMBDA_DIRS=("summarize_bulletin" "download_bulletin" "delete_bulletins")
 
-# Step 2: Create package directory
-echo "Creating package directory: $PACKAGE_DIR"
-mkdir -p "$PACKAGE_DIR"
+# === Prepare dist folder ===
+mkdir -p "$DIST_DIR"
+rm -f "$DIST_DIR"/*.zip
 
-# Step 3: Copy source file
-echo "Copying $SOURCE_FILE into $PACKAGE_DIR"
-cp "$SOURCE_FILE" "$PACKAGE_DIR/"
+for DIR in "${LAMBDA_DIRS[@]}"; do
+  echo "📦 Building Lambda: $DIR"
 
-# Step 4: Create ZIP file
-echo "Creating zip file: $ZIP_FILE"
-cd "$PACKAGE_DIR"
-zip -r "../$ZIP_FILE" .
-cd ..
+  TEMP_DIR="build_$DIR"
+  rm -rf "$TEMP_DIR"
+  mkdir -p "$TEMP_DIR"
 
-echo "✅ Done: Created $ZIP_FILE"
+  # Copy source files
+  cp "$DIR/lambda_function.py" "$TEMP_DIR/"
+
+  # Install dependencies if requirements.txt exists
+  if [ -f "$DIR/requirements.txt" ]; then
+    echo "📦 Installing dependencies for $DIR..."
+    pip install -r "$DIR/requirements.txt" -t "$TEMP_DIR/"
+  fi
+
+  # Zip the Lambda
+  (cd "$TEMP_DIR" && zip -r "../$DIST_DIR/${DIR}.zip" .)
+
+  echo "✅ Done: $DIST_DIR/${DIR}.zip"
+
+  rm -rf "$TEMP_DIR"
+done
