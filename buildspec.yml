@@ -1,0 +1,19 @@
+version: 0.2
+
+env:
+  variables:
+    PROMPT_FILE: "summarize_prompt.txt"
+    PROMPT_S3_KEY: "church-bulletins-config/prompts/summarize_prompt.txt"
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+  build:
+    commands:
+      - echo "📤 Uploading $PROMPT_FILE to s3://$S3_BUCKET/$PROMPT_S3_KEY"
+      - aws s3 cp "$PROMPT_FILE" "s3://$S3_BUCKET/$PROMPT_S3_KEY"
+
+artifacts:
+  files:
+    - summarize_prompt.txt
