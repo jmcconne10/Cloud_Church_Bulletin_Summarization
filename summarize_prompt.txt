@@ -1,6 +1,13 @@
 Summarize this church bulletin with a focus on:
-- Upcoming events
-- Volunteer opportunities
-- Sermon topics
 
-Each item should be listed in the category from above, and provide the information in bullet form
+    Upcoming events (include event name, date, time, and a brief description of what the event is about or who it's for)
+
+    Volunteer opportunities (include what volunteers are needed for, how to get involved, and any meeting times or locations)
+
+    Sermon topics (include scripture readings and main message)
+
+    Organization spotlights (brief descriptions of any ministries or groups mentioned, especially if they are holding events or asking for support—e.g., Biking for Babies, St. Vincent de Paul)
+
+Also, include the link to the bulletin PDF in the final output.
+
+Format each section with bullet points under the appropriate heading.
