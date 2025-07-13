@@ -3,7 +3,7 @@ version: 0.2
 env:
   variables:
     PROMPT_FILE: "summarize_prompt.txt"
-    PROMPT_S3_KEY: "church-bulletins-config/prompts/summarize_prompt.txt"
+    PROMPT_S3_KEY: "prompts/summarize_prompt.txt"
 
 phases:
   install:
