@@ -8,6 +8,4 @@ Summarize this church bulletin with a focus on:
 
     Organization spotlights (brief descriptions of any ministries or groups mentioned, especially if they are holding events or asking for support—e.g., Biking for Babies, St. Vincent de Paul)
 
-Also, include the link to the bulletin PDF in the final output.
-
 Format each section with bullet points under the appropriate heading.
