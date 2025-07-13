@@ -1,6 +1,6 @@
 Summarize this church bulletin with a focus on:
 
-    Upcoming events (include event name, date, time, and a brief description of what the event is about or who it's for)
+    Upcoming events (include event name, date, time, and a description of what the event is about or who it's for)
 
     Volunteer opportunities (include what volunteers are needed for, how to get involved, and any meeting times or locations)
 
@@ -10,4 +10,6 @@ Summarize this church bulletin with a focus on:
 
     For St. Vincent de Paul sometimes abbreviated as SVDP, show any days or times they have event.
 
+Make sure to not duplicate information
 Format each section with bullet points under the appropriate heading.
+
